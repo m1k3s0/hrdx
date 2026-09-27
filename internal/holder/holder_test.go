@@ -296,6 +296,22 @@ func TestHolderReplaysDetachedOutput(t *testing.T) {
 	killSessionAndWait(t, second, session)
 }
 
+// TestHolderExitHelper waits for an explicit exit request so the exit event
+// is observed after attach without depending on shell startup timing.
+func TestHolderExitHelper(t *testing.T) {
+	if os.Getenv("HRDX_HOLDER_EXIT_HELPER") != "1" {
+		return
+	}
+	fmt.Println("ready")
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		if strings.TrimSpace(scanner.Text()) == "exit" {
+			os.Exit(0)
+		}
+	}
+	os.Exit(0)
+}
+
 func TestHolderExitEvent(t *testing.T) {
 	socket := startTestHolder(t)
 	client, err := Connect(socket)
@@ -307,13 +323,29 @@ func TestHolderExitEvent(t *testing.T) {
 	exited := make(chan int64, 1)
 	client.SetExitHandler(func(session int64) { exited <- session })
 
-	exitPath, exitArgs := testShell("exit 0")
-	session, err := client.Start(exitPath, exitArgs, t.TempDir(), testEnv(), 80, 24)
+	path, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
 	}
+	env := append(os.Environ(), "HRDX_HOLDER_EXIT_HELPER=1")
+	session, err := client.Start(path, []string{"-test.run=^TestHolderExitHelper$"}, t.TempDir(), env, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanup, connectErr := Connect(socket)
+		if connectErr != nil {
+			return
+		}
+		defer cleanup.Close()
+		_, _ = cleanup.call(request{Op: "kill", Session: session})
+	})
 	var out collector
-	_, _ = client.Attach(session, 80, 24, out.sink)
+	if _, err := client.Attach(session, 80, 24, out.sink); err != nil {
+		t.Fatal(err)
+	}
+	waitContains(t, &out, "ready")
+	client.Write(session, []byte("exit\n"))
 
 	select {
 	case got := <-exited:
