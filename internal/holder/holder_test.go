@@ -306,6 +306,7 @@ func TestHolderExitHelper(t *testing.T) {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		if strings.TrimSpace(scanner.Text()) == "exit" {
+			fmt.Println("done")
 			os.Exit(0)
 		}
 	}
@@ -359,7 +360,7 @@ func TestHolderExitEvent(t *testing.T) {
 		}
 		for _, current := range sessions {
 			if current.ID == session {
-				t.Fatalf("no exit event, running = %t", current.Running)
+				t.Fatalf("no exit event, running = %t, child signaled exit = %t", current.Running, strings.Contains(out.String(), "done"))
 			}
 		}
 		t.Fatal("no exit event, session removed")
