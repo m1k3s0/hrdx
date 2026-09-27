@@ -353,7 +353,16 @@ func TestHolderExitEvent(t *testing.T) {
 			t.Fatalf("exit event for %d, want %d", got, session)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("no exit event")
+		sessions, err := client.List()
+		if err != nil {
+			t.Fatalf("no exit event, list: %v", err)
+		}
+		for _, current := range sessions {
+			if current.ID == session {
+				t.Fatalf("no exit event, running = %t", current.Running)
+			}
+		}
+		t.Fatal("no exit event, session removed")
 	}
 }
 
