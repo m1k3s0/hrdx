@@ -346,7 +346,8 @@ func TestHolderExitEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitContains(t, &out, "ready")
-	client.Write(session, []byte("exit\n"))
+	// A terminal Enter is CR; ConPTY does not submit a line for LF alone.
+	client.Write(session, []byte("exit\r"))
 
 	select {
 	case got := <-exited:
